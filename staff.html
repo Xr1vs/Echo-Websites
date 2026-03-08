@@ -140,7 +140,7 @@ footer{border-top:1px solid var(--border);padding:36px 48px;display:flex;align-i
 </footer>
 
 <script>
-document.getElementById('nav-staff').classList.add('active');
+document.getElementById("nav-staff")?.classList.add("active");
 
 const STAFF = [
   { id: "1454989785352372431", role: "Founder" },
@@ -149,101 +149,156 @@ const STAFF = [
   { id: "1038323323152650260", role: "Staff" },
   { id: "1321210691696463909", role: "Staff" },
   { id: "1351318296049483917", role: "Staff" },
-  { id: "1138893203068694648", role: "Staff" },
+  { id: "1138893203068694648", role: "Staff" }
 ];
 
-async function fetchDiscordUser(id) {
-  // Primary: discord-lookup-api (public, no auth needed)
-  try {
-    const res = await fetch(`https://discord-lookup-api.jus.tips/v1/users/${id}`, { signal: AbortSignal.timeout(6000) });
-    const json = await res.json();
-    if (json.id) {
-      const avatar = json.avatar?.link
-        || `https://cdn.discordapp.com/embed/avatars/${Number(json.discriminator || 0) % 5}.png`;
-      return { username: json.global_name || json.username, avatar };
-    }
-  } catch(e) {}
+async function fetchDiscordUser(id){
 
-  // Fallback: Lanyard
-  try {
-    const res = await fetch(`https://api.lanyard.rest/v1/users/${id}`, { signal: AbortSignal.timeout(4000) });
+  try{
+    const res = await fetch(`https://discord-lookup-api.jus.tips/v1/users/${id}`);
     const json = await res.json();
-    if (json.success && json.data?.discord_user) {
+
+    if(json?.id){
+      const avatar =
+        json.avatar?.link ||
+        `https://cdn.discordapp.com/embed/avatars/${Number(json.discriminator||0)%5}.png`;
+
+      return {
+        username: json.global_name || json.username,
+        avatar
+      };
+    }
+  }catch{}
+
+  try{
+    const res = await fetch(`https://api.lanyard.rest/v1/users/${id}`);
+    const json = await res.json();
+
+    if(json.success && json.data?.discord_user){
+
       const u = json.data.discord_user;
+
       const avatar = u.avatar
         ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128`
-        : `https://cdn.discordapp.com/embed/avatars/${Number(u.discriminator || 0) % 5}.png`;
-      return { username: u.global_name || u.username, avatar };
-    }
-  } catch(e) {}
+        : `https://cdn.discordapp.com/embed/avatars/${Number(u.discriminator||0)%5}.png`;
 
-  // Last resort: corsproxy
-  try {
-    const res = await fetch(`https://corsproxy.io/?https://discord.com/api/v10/users/${id}`, { signal: AbortSignal.timeout(5000) });
-    const json = await res.json();
-    if (json.username) {
-      const avatar = json.avatar
-        ? `https://cdn.discordapp.com/avatars/${json.id}/${json.avatar}.png?size=128`
-        : `https://cdn.discordapp.com/embed/avatars/${Number(json.discriminator || 0) % 5}.png`;
-      return { username: json.global_name || json.username, avatar };
+      return {
+        username: u.global_name || u.username,
+        avatar
+      };
     }
-  } catch(e) {}
+  }catch{}
 
-  return { username: null, avatar: null };
+  return { username:null, avatar:null };
 }
 
-async function loadStaff() {
-  const container = document.getElementById('staffContainer');
-  const roleOrder = { 'Founder': 0, 'Head Of Production': 1, 'Staff': 2 };
-  const sorted = [...STAFF].sort((a, b) => (roleOrder[a.role] ?? 99) - (roleOrder[b.role] ?? 99));
+async function loadStaff(){
 
-  const members = await Promise.all(sorted.map(async m => {
-    const data = await fetchDiscordUser(m.id);
-    return { ...m, ...data };
-  }));
+  const container = document.getElementById("staffContainer");
 
-  // Group by role
+  const roleOrder = {
+    "Founder":0,
+    "Head Of Production":1,
+    "Staff":2
+  };
+
+  const sorted = [...STAFF].sort(
+    (a,b)=>(roleOrder[a.role]??99)-(roleOrder[b.role]??99)
+  );
+
+  const members = await Promise.all(
+    sorted.map(async m=>{
+      const data = await fetchDiscordUser(m.id);
+      return {...m,...data};
+    })
+  );
+
   const groups = {};
-  members.forEach(m => {
-    if (!groups[m.role]) groups[m.role] = [];
+  members.forEach(m=>{
+    if(!groups[m.role]) groups[m.role]=[];
     groups[m.role].push(m);
   });
 
-  const roleDisplay = { 'Founder': 'Founders', 'Head Of Production': 'Head of Production', 'Staff': 'Staff' };
-  const roleKeys = ['Founder', 'Head Of Production', 'Staff'];
+  const roleDisplay = {
+    "Founder":"Founders",
+    "Head Of Production":"Head of Production",
+    "Staff":"Staff"
+  };
 
-  container.innerHTML = '';
-  roleKeys.forEach(role => {
-    if (!groups[role] || groups[role].length === 0) return;
-    const group = document.createElement('div');
-    group.className = 'role-group fade-up';
-    group.innerHTML = `<div class="role-group-label">${roleDisplay[role] || role}</div><div class="staff-grid" id="grid-${role.replace(/\s+/g,'-')}"></div>`;
+  const roleKeys = ["Founder","Head Of Production","Staff"];
+
+  container.innerHTML="";
+
+  roleKeys.forEach(role=>{
+
+    if(!groups[role]) return;
+
+    const group = document.createElement("div");
+    group.className="role-group fade-up";
+
+    group.innerHTML = `
+      <div class="role-group-label">${roleDisplay[role]}</div>
+      <div class="staff-grid"></div>
+    `;
+
+    const grid = group.querySelector(".staff-grid");
+
+    groups[role].forEach((member,i)=>{
+
+      const card=document.createElement("div");
+      card.className="staff-card fade-up";
+      card.style.transitionDelay = (i*60)+"ms";
+
+      const roleClass =
+        role==="Founder" ? "founder" :
+        role==="Head Of Production" ? "head" : "";
+
+      const name = member.username || `User ${member.id.slice(-4)}`;
+      const initial = name[0].toUpperCase();
+
+      card.innerHTML = `
+        ${
+          member.avatar
+          ? `<img class="staff-avatar" src="${member.avatar}" loading="lazy">`
+          : `<div class="staff-avatar-placeholder">${initial}</div>`
+        }
+        <div class="staff-name">${name}</div>
+        <div class="staff-role ${roleClass}">${role}</div>
+      `;
+
+      grid.appendChild(card);
+
+    });
+
     container.appendChild(group);
 
-    const grid = group.querySelector('.staff-grid');
-    groups[role].forEach((member, i) => {
-      const card = document.createElement('div');
-      card.className = 'staff-card fade-up';
-      card.style.transitionDelay = (i * 60) + 'ms';
-      const roleClass = role === 'Founder' ? 'founder' : role === 'Head Of Production' ? 'head' : '';
-      const initial = (member.username || '?')[0].toUpperCase();
-      const name = member.username || `···${member.id.slice(-4)}`;
-      card.innerHTML = `
-        ${member.avatar ? `<img class="staff-avatar" src="${member.avatar}" alt="${name}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ''}
-        <div class="staff-avatar-placeholder" style="${member.avatar ? 'display:none' : ''}">${initial}</div>
-        <div class="staff-name">${name}</div>
-        <div class="staff-role ${roleClass}">${role}</div>`;
-      grid.appendChild(card);
-    });
   });
 
   observeFadeUps();
 }
 
-loadStaff();
+function observeFadeUps(){
 
-function observeFadeUps(){const obs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target);}});}),{threshold:0.08,rootMargin:'0px 0px -20px 0px'});document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));}
-function observeFadeUps(){const obs=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target);}});},{threshold:0.08,rootMargin:'0px 0px -20px 0px'});document.querySelectorAll('.fade-up').forEach(el=>obs.observe(el));}observeFadeUps();
+  const observer = new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(entry.isIntersecting){
+        entry.target.classList.add("visible");
+        observer.unobserve(entry.target);
+      }
+    });
+  },{
+    threshold:0.08,
+    rootMargin:"0px 0px -20px 0px"
+  });
+
+  document.querySelectorAll(".fade-up").forEach(el=>{
+    observer.observe(el);
+  });
+
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  observeFadeUps();
+  loadStaff();
+});
 </script>
-</body>
-</html>
